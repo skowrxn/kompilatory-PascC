@@ -166,3 +166,24 @@ class WriteArg(Node):
     expr: Any
     width: Optional[int] = None
     decimals: Optional[int] = None
+
+
+@dataclass
+class ArrayDecl(Node):
+    names: List[str]
+    low: int
+    high: int
+    elem_type: str
+
+
+@dataclass
+class ArrayAccess(Node):
+    name: str
+    index: Any
+
+
+@dataclass
+class ArrayAssignment(Node):
+    name: str
+    index: Any
+    value: Any

@@ -2,9 +2,9 @@
 
 void Swap(int* a, int* b) {
     int t;
-    t = a;
-    a = b;
-    b = t;
+    t = (*a);
+    *a = (*b);
+    *b = t;
 }
 
 int main(void) {
@@ -13,7 +13,7 @@ int main(void) {
     j = 2;
     tmp = 3;
     if ((i > j)) {
-        Swap(i, j);
+        Swap(&i, &j);
     }
     printf("%d\n", i);
     printf("%d\n", j);

@@ -7,6 +7,7 @@ from ast_nodes import (
     WriteStatement, ReadStatement, WriteArg,
     BinOp, UnaryOp, IntConst, RealConst, CharConst, StringConst,
     BoolConst, VarRef, FunctionCallExpr,
+    ArrayDecl, ArrayAccess, ArrayAssignment,
 )
 
 TYPE_MAP = {
@@ -47,6 +48,8 @@ class CodeGenerator:
         self._scope_stack: list[dict] = [{}]
         # stos zbiorów nazw parametrów by-ref (są wskaźnikami w C)
         self._byref_stack: list[set] = [set()]
+        # stos metadanych tablic: name -> {low, elem_type}
+        self._array_meta_stack: list[dict] = [{}]
         # rejestr sygnatur: name -> [{name, by_ref, type}]
         self._func_registry: dict[str, list] = {}
         self._func_return_type: str | None = None
@@ -77,10 +80,21 @@ class CodeGenerator:
     def _push_scope(self):
         self._scope_stack.append({})
         self._byref_stack.append(set())
+        self._array_meta_stack.append({})
 
     def _pop_scope(self):
         self._scope_stack.pop()
         self._byref_stack.pop()
+        self._array_meta_stack.pop()
+
+    def _set_array_meta(self, name: str, low: int, elem_type: str):
+        self._array_meta_stack[-1][name.lower()] = {'low': low, 'elem_type': elem_type}
+
+    def _get_array_meta(self, name: str) -> dict | None:
+        for scope in reversed(self._array_meta_stack):
+            if name.lower() in scope:
+                return scope[name.lower()]
+        return None
 
     def _set_type(self, name: str, typ: str):
         self._scope_stack[-1][name.lower()] = typ
@@ -142,18 +156,31 @@ class CodeGenerator:
         if not var_section:
             return
         for decl in var_section.declarations:
-            for name in decl.names:
-                self._set_type(name, decl.type_name)
+            if isinstance(decl, ArrayDecl):
+                for name in decl.names:
+                    self._set_type(name, decl.elem_type)
+                    self._set_array_meta(name, decl.low, decl.elem_type)
+            else:
+                for name in decl.names:
+                    self._set_type(name, decl.type_name)
 
     def _emit_var_section(self, var_section):
         if not var_section:
             return
         for decl in var_section.declarations:
-            for name in decl.names:
-                self._set_type(name, decl.type_name)
-            c_type = self._c_type(decl.type_name)
-            names_str = ', '.join(decl.names)
-            self._emit(f'{c_type} {names_str};')
+            if isinstance(decl, ArrayDecl):
+                c_type = self._c_type(decl.elem_type)
+                size = decl.high - decl.low + 1
+                for name in decl.names:
+                    self._set_type(name, decl.elem_type)
+                    self._set_array_meta(name, decl.low, decl.elem_type)
+                    self._emit(f'{c_type} {name}[{size}];')
+            else:
+                for name in decl.names:
+                    self._set_type(name, decl.type_name)
+                c_type = self._c_type(decl.type_name)
+                names_str = ', '.join(decl.names)
+                self._emit(f'{c_type} {names_str};')
 
     def visit_ProcedureDecl(self, node: ProcedureDecl):
         params_str = self._params_c(node.params)
@@ -222,6 +249,16 @@ class CodeGenerator:
             self._emit(f'*{node.target} = {val};')
         else:
             self._emit(f'{node.target} = {val};')
+
+    def visit_ArrayAssignment(self, node: ArrayAssignment):
+        meta = self._get_array_meta(node.name)
+        index = self.visit(node.index)
+        value = self.visit(node.value)
+        low = meta['low'] if meta else 0
+        if low != 0:
+            self._emit(f'{node.name}[({index}) - {low}] = {value};')
+        else:
+            self._emit(f'{node.name}[{index}] = {value};')
 
     def visit_ProcedureCall(self, node: ProcedureCall):
         args_str = self._build_call_args(node.name, node.args)
@@ -367,6 +404,14 @@ class CodeGenerator:
     def visit_BoolConst(self, node: BoolConst) -> str:
         return '1' if node.value else '0'
 
+    def visit_ArrayAccess(self, node: ArrayAccess) -> str:
+        meta = self._get_array_meta(node.name)
+        index = self.visit(node.index)
+        low = meta['low'] if meta else 0
+        if low != 0:
+            return f'{node.name}[({index}) - {low}]'
+        return f'{node.name}[{index}]'
+
     def visit_VarRef(self, node: VarRef) -> str:
         if self._func_name and node.name.lower() == self._func_name:
             return f'_result_{node.name}'
@@ -386,6 +431,9 @@ class CodeGenerator:
         if isinstance(node, StringConst): return 'string'
         if isinstance(node, BoolConst):   return 'boolean'
         if isinstance(node, VarRef):      return self._get_type(node.name)
+        if isinstance(node, ArrayAccess):
+            meta = self._get_array_meta(node.name)
+            return meta['elem_type'] if meta else 'integer'
         if isinstance(node, FunctionCallExpr):
             return self._get_type(node.name)
         if isinstance(node, BinOp):

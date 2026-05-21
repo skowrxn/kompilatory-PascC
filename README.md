@@ -16,9 +16,10 @@ Transpilator obsługuje następujący podzbiór Pascala:
 
 - **Program:** nagłówek `program`, sekcja `var`, ciało `begin...end.`
 - **Typy danych:** `integer`, `real`, `boolean`, `char`, `string`
+- **Tablice:** `array [low..high] of type` — jednoindeksowe, dostęp i zapis przez `arr[i]`
 - **Zmienne:** deklaracje globalne i lokalne w procedurach/funkcjach
 - **Wyrażenia:** arytmetyczne (`+`, `-`, `*`, `/`, `div`, `mod`), relacyjne (`=`, `<>`, `<`, `>`, `<=`, `>=`), logiczne (`and`, `or`, `not`)
-- **Instrukcje:** przypisanie (`:=`), blok `begin...end`, pusta instrukcja
+- **Instrukcje:** przypisanie (`:=`), przypisanie do elementu tablicy `arr[i] := expr`, blok `begin...end`, pusta instrukcja
 - **Instrukcje warunkowe:** `if...then`, `if...then...else`
 - **Pętle:** `while...do`, `for...to...do`, `for...downto...do`, `repeat...until`
 - **Procedury i funkcje:** deklaracja, parametry przez wartość i przez referencję (`var`), rekurencja
@@ -58,63 +59,81 @@ pip install ply
 
 ```bash
 # Transpilacja
-python main.py --input examples/factorial.pas --output factorial.c
+py main.py --input examples/bubble_sort.pas --output out_bubble.c
 
-# Kompilacja i uruchomienie
-gcc factorial.c -o factorial && ./factorial
+# Kompilacja i uruchomienie (wymaga gcc)
+gcc out_bubble.c -o bubble && ./bubble
 
 # Tryb debugowania (tokeny + AST)
-python main.py --input examples/factorial.pas --debug
+py main.py --input examples/bubble_sort.pas --debug
 ```
 
 ---
 
-## Przykład działania — silnia rekurencyjna
+## Przykład działania — sortowanie bąbelkowe
 
-**Plik wejściowy `examples/factorial.pas`:**
+**Plik wejściowy `examples/bubble_sort.pas`:**
 
 ```pascal
-program Factorial;
+program BubbleSort;
 
 var
-  n: integer;
-
-function Fact(n: integer): integer;
-begin
-  if n <= 1 then
-    Fact := 1
-  else
-    Fact := n * Fact(n - 1)
-end;
+  arr: array [1..5] of integer;
+  i, j, tmp, n: integer;
 
 begin
-  readln(n);
-  writeln(Fact(n));
+  n := 5;
+  arr[1] := 5;
+  arr[2] := 3;
+  arr[3] := 1;
+  arr[4] := 4;
+  arr[5] := 2;
+
+  for i := 1 to n - 1 do
+    for j := 1 to n - i do
+      if arr[j] > arr[j + 1] then
+      begin
+        tmp := arr[j];
+        arr[j] := arr[j + 1];
+        arr[j + 1] := tmp;
+      end;
+
+  for i := 1 to n do
+    writeln(arr[i]);
 end.
 ```
 
-**Wygenerowany plik `factorial.c`:**
+**Wygenerowany plik `out_bubble.c`:**
 
 ```c
 #include <stdio.h>
 
-int Fact(int n) {
-    int _result_Fact = 0;
-    if ((n <= 1)) {
-        _result_Fact = 1;
-    } else {
-        _result_Fact = (n * Fact((n - 1)));
-    }
-    return _result_Fact;
-}
-
 int main(void) {
-    int n;
-    scanf("%d", &n);
-    printf("%d\n", Fact(n));
+    int arr[5];
+    int i, j, tmp, n;
+    n = 5;
+    arr[(1) - 1] = 5;
+    arr[(2) - 1] = 3;
+    arr[(3) - 1] = 1;
+    arr[(4) - 1] = 4;
+    arr[(5) - 1] = 2;
+    for (i = 1; i <= (n - 1); i++) {
+        for (j = 1; j <= (n - i); j++) {
+            if ((arr[(j) - 1] > arr[((j + 1)) - 1])) {
+                tmp = arr[(j) - 1];
+                arr[(j) - 1] = arr[((j + 1)) - 1];
+                arr[((j + 1)) - 1] = tmp;
+            }
+        }
+    }
+    for (i = 1; i <= n; i++) {
+        printf("%d\n", arr[(i) - 1]);
+    }
     return 0;
 }
 ```
+
+Wynik działania: `1 2 3 4 5` (każda liczba w nowej linii).
 
 ---
 
@@ -168,6 +187,8 @@ Parser zbudowany jest na module `ply.yacc` implementującym algorytm LALR(1). Gr
 | `WRITE`        | `write`     | Wyjście bez nowej linii             |
 | `READLN`       | `readln`    | Wejście z przejściem do nowej linii |
 | `READ`         | `read`      | Wejście                             |
+| `ARRAY`        | `array`     | Typ tablicowy                       |
+| `OF`           | `of`        | Element typu tablicowego            |
 
 ### Identyfikatory i literały
 
@@ -193,6 +214,8 @@ Parser zbudowany jest na module `ply.yacc` implementującym algorytm LALR(1). Gr
 | `DOTDOT`    | `..`    | Zakres (tablice)             |
 | `LPAREN`    | `(`     | Nawias okrągły lewy          |
 | `RPAREN`    | `)`     | Nawias okrągły prawy         |
+| `LBRACKET`  | `[`     | Nawias kwadratowy lewy       |
+| `RBRACKET`  | `]`     | Nawias kwadratowy prawy      |
 | `PLUS`      | `+`     | Dodawanie                    |
 | `MINUS`     | `-`     | Odejmowanie / minus unarny   |
 | `STAR`      | `*`     | Mnożenie                     |
@@ -227,7 +250,8 @@ declarations    = [ var_section ] { procedure_decl | function_decl } ;
 
 (* ── Zmienne ── *)
 var_section     = "var" var_decl { var_decl } ;
-var_decl        = id_list ":" type_spec ";" ;
+var_decl        = id_list ":" type_spec ";"
+                | id_list ":" "array" "[" INTEGER_CONST ".." INTEGER_CONST "]" "of" type_spec ";" ;
 id_list         = ID { "," ID } ;
 type_spec       = "integer" | "real" | "boolean" | "char" | "string" ;
 
@@ -243,6 +267,7 @@ compound_statement = "begin" statement_list "end" ;
 statement_list  = statement { ";" statement } ;
 
 statement       = assignment
+                | array_assignment
                 | procedure_call
                 | compound_statement
                 | if_statement
@@ -255,7 +280,8 @@ statement       = assignment
                 | readln_statement
                 | (* pusta *) ;
 
-assignment      = ID ":=" expression ;
+assignment       = ID ":=" expression ;
+array_assignment = ID "[" expression "]" ":=" expression ;
 procedure_call  = ID [ "(" argument_list ")" ] ;
 
 if_statement    = "if" expression "then" statement [ "else" statement ] ;
@@ -287,6 +313,7 @@ factor          = INTEGER_CONST
                 | STRING_CONST
                 | "true"  | "false"
                 | ID
+                | ID "[" expression "]"
                 | ID "(" argument_list ")"
                 | "(" expression ")"
                 | "not" factor

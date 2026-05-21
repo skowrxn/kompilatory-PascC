@@ -7,6 +7,7 @@ from ast_nodes import (
     WriteStatement, ReadStatement, WriteArg,
     BinOp, UnaryOp, IntConst, RealConst, CharConst, StringConst,
     BoolConst, VarRef, FunctionCallExpr,
+    ArrayDecl, ArrayAccess, ArrayAssignment,
 )
 from errors import SemanticError
 
@@ -87,6 +88,30 @@ class SemanticAnalyzer:
     def visit_VarDecl(self, node: VarDecl):
         for name in node.names:
             self.symbols.declare(name, {'kind': 'var', 'type': node.type_name}, node.line)
+
+    def visit_ArrayDecl(self, node: ArrayDecl):
+        for name in node.names:
+            self.symbols.declare(name, {
+                'kind': 'array',
+                'elem_type': node.elem_type,
+                'low': node.low,
+                'high': node.high,
+            }, node.line)
+
+    def visit_ArrayAccess(self, node: ArrayAccess) -> str:
+        sym = self.symbols.lookup(node.name, node.line)
+        if sym['kind'] != 'array':
+            raise SemanticError(f"'{node.name}' nie jest tablicą", node.line)
+        self.visit(node.index)
+        return sym['elem_type']
+
+    def visit_ArrayAssignment(self, node: ArrayAssignment):
+        sym = self.symbols.lookup(node.name, node.line)
+        if sym['kind'] != 'array':
+            raise SemanticError(f"'{node.name}' nie jest tablicą", node.line)
+        self.visit(node.index)
+        val_type = self.visit(node.value)
+        self._check_assign_compat(sym['elem_type'], val_type, node.line)
 
     def visit_ProcedureDecl(self, node: ProcedureDecl):
         params_info = self._params_info(node.params)

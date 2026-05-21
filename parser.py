@@ -9,6 +9,7 @@ from ast_nodes import (
     WriteStatement, ReadStatement, WriteArg,
     BinOp, UnaryOp, IntConst, RealConst, CharConst, StringConst,
     BoolConst, VarRef, FunctionCallExpr,
+    ArrayDecl, ArrayAccess, ArrayAssignment,
 )
 from errors import ParseError
 
@@ -87,6 +88,11 @@ def p_var_decl_list_single(p):
 def p_var_decl(p):
     '''var_decl : id_list COLON type_spec SEMICOLON'''
     p[0] = VarDecl(names=p[1], type_name=p[3], line=_line(p))
+
+
+def p_var_decl_array(p):
+    '''var_decl : id_list COLON ARRAY LBRACKET INTEGER_CONST DOTDOT INTEGER_CONST RBRACKET OF type_spec SEMICOLON'''
+    p[0] = ArrayDecl(names=p[1], low=p[5], high=p[7], elem_type=p[10], line=_line(p))
 
 
 def p_id_list_multi(p):
@@ -182,6 +188,7 @@ def p_statement_list_single(p):
 
 def p_statement(p):
     '''statement : assignment
+                 | array_assignment
                  | procedure_call
                  | compound_statement
                  | if_statement
@@ -194,6 +201,11 @@ def p_statement(p):
                  | readln_statement
                  | empty'''
     p[0] = p[1]
+
+
+def p_array_assignment(p):
+    '''array_assignment : ID LBRACKET expression RBRACKET ASSIGN expression'''
+    p[0] = ArrayAssignment(name=p[1], index=p[3], value=p[6], line=_line(p))
 
 
 def p_assignment(p):
@@ -384,6 +396,11 @@ def p_expression_funcall(p):
 def p_expression_funcall_empty(p):
     '''expression : ID LPAREN RPAREN'''
     p[0] = FunctionCallExpr(name=p[1], args=[], line=_line(p))
+
+
+def p_expression_array_access(p):
+    '''expression : ID LBRACKET expression RBRACKET'''
+    p[0] = ArrayAccess(name=p[1], index=p[3], line=_line(p))
 
 
 def p_expression_id(p):

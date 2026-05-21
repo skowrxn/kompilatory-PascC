@@ -37,6 +37,8 @@ KEYWORDS = {
     'write':     'WRITE',
     'readln':    'READLN',
     'read':      'READ',
+    'array':     'ARRAY',
+    'of':        'OF',
 }
 
 tokens = list(set(KEYWORDS.values())) + [
@@ -53,6 +55,8 @@ tokens = list(set(KEYWORDS.values())) + [
     'DOTDOT',
     'LPAREN',
     'RPAREN',
+    'LBRACKET',
+    'RBRACKET',
     'PLUS',
     'MINUS',
     'STAR',
@@ -74,6 +78,8 @@ t_DOTDOT    = r'\.\.'
 t_DOT       = r'\.'
 t_LPAREN    = r'\('
 t_RPAREN    = r'\)'
+t_LBRACKET  = r'\['
+t_RBRACKET  = r'\]'
 t_PLUS      = r'\+'
 t_MINUS     = r'-'
 t_STAR      = r'\*'
