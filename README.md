@@ -69,6 +69,55 @@ python main.py --input examples/factorial.pas --debug
 
 ---
 
+## Przykład działania — silnia rekurencyjna
+
+**Plik wejściowy `examples/factorial.pas`:**
+
+```pascal
+program Factorial;
+
+var
+  n: integer;
+
+function Fact(n: integer): integer;
+begin
+  if n <= 1 then
+    Fact := 1
+  else
+    Fact := n * Fact(n - 1)
+end;
+
+begin
+  readln(n);
+  writeln(Fact(n));
+end.
+```
+
+**Wygenerowany plik `factorial.c`:**
+
+```c
+#include <stdio.h>
+
+int Fact(int n) {
+    int _result_Fact = 0;
+    if ((n <= 1)) {
+        _result_Fact = 1;
+    } else {
+        _result_Fact = (n * Fact((n - 1)));
+    }
+    return _result_Fact;
+}
+
+int main(void) {
+    int n;
+    scanf("%d", &n);
+    printf("%d\n", Fact(n));
+    return 0;
+}
+```
+
+---
+
 ## Sposób realizacji skanera i parsera
 
 ### Skaner (`lexer.py`) - `ply.lex`
